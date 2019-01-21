@@ -1,0 +1,22 @@
+[package]
+name = "razy-awslogs"
+version = "0.1.0"
+authors = ["Yoshihito Hirakawa <hirakawa.yoshihito@classmethod.jp>"]
+edition = "2018"
+
+[dependencies]
+chrono = "^0.4"
+ansi_term = "^0.11"
+env_logger = "^0.6"
+failure = "^0.1"
+futures = "^0.1"
+lazy_static = "^1.2"
+log = "^0.4"
+rusoto_core = "^0.36"
+rusoto_logs = "^0.36"
+rusoto_sts = "^0.36"
+tokio = "^0.1"
+
+[dependencies.clap]
+version = "^2.32"
+features = ["wrap_help"]

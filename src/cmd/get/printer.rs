@@ -1,11 +1,18 @@
 use ansi_term::Color;
-use chrono::prelude::*;
 
 use super::TZ_ASIA_TOKYO;
 use crate::cmd::get::event::LogEvent;
 
 pub trait Printer: Send {
     fn print_events(&self, events: &Vec<LogEvent>);
+
+    fn puts(&self, text: &str) {
+        if text.ends_with("\n") {
+            print!("{}", text);
+        } else {
+            println!("{}", text);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -21,25 +28,34 @@ impl Default for MessagePrinter {
 
 impl Printer for MessagePrinter {
     fn print_events(&self, events: &Vec<LogEvent>) {
-        // TODO: 出力先を可変にするか検討すること
         for event in events.iter() {
-            if event.message.ends_with("\n") {
-                print!("{}", event.message);
-            } else {
-                println!("{}", event.message);
-            }
+            self.puts(format!("{}", event.message).as_str());
         }
     }
 }
 
 #[derive(Clone)]
-pub struct LogPrinter {}
+pub struct LogPrinter {
+    enable_color: bool,
+}
 
 unsafe impl Send for LogPrinter {}
 
+impl LogPrinter {
+    fn decorate(&self, text: String) -> String {
+        if self.enable_color {
+            Color::Green.paint(&text).to_string()
+        } else {
+            text
+        }
+    }
+}
+
 impl Default for LogPrinter {
     fn default() -> Self {
-        LogPrinter {}
+        LogPrinter {
+            enable_color: atty::is(atty::Stream::Stdout),
+        }
     }
 }
 
@@ -47,20 +63,16 @@ impl Printer for LogPrinter {
     fn print_events(&self, events: &Vec<LogEvent>) {
         let tz = TZ_ASIA_TOKYO.clone();
         for event in events.iter() {
-            let prefix = Color::Green.paint(format!(
+            let prefix = self.decorate(format!(
                 "[{}]",
                 // event.timestamp.with_timezone(&tz).to_rfc3339()
                 event
                     .timestamp
                     .with_timezone(&tz)
-                    .format("%Y-%m-%d %H:%M:%S")
+                    .format("%Y-%m-%d %H:%M:%S"),
             ));
 
-            if event.message.ends_with("\n") {
-                print!("{} {}", prefix, event.message);
-            } else {
-                println!("{} {}", prefix, event.message);
-            }
+            self.puts(format!("{} {}", prefix, event.message).as_str());
         }
     }
 }

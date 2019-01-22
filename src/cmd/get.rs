@@ -12,6 +12,7 @@ use crate::errors;
 
 mod event;
 mod printer;
+mod reader;
 mod stream;
 
 pub struct GetOptions<'a> {
@@ -104,12 +105,10 @@ pub fn sub_command(s: &'static str) -> App<'static, 'static> {
     )
 }
 
-type LogEventStream = Stream<Item = stream::LogEventsReadResponse, Error = errors::Error> + Send;
-
 trait Runner {
     fn run(
         &self,
-        log_events: Box<LogEventStream>,
+        log_events: Box<stream::LogEventResponseStream>,
         printer: Box<printer::Printer>,
     ) -> Box<Future<Item = (), Error = errors::Error> + Send>;
 }
@@ -125,7 +124,7 @@ impl Default for OneShotRunner {
 impl Runner for OneShotRunner {
     fn run(
         &self,
-        log_events: Box<LogEventStream>,
+        log_events: Box<stream::LogEventResponseStream>,
         printer: Box<printer::Printer>,
     ) -> Box<Future<Item = (), Error = errors::Error> + Send> {
         info!("iterate log events stream");
@@ -148,20 +147,20 @@ enum Payload {
 fn create_log_events_stream(
     client: CloudWatchLogsClient,
     options: &GetOptions,
-) -> Result<Box<LogEventStream>, errors::Error> {
-    let request = stream::LogEventsReadRequest {
+) -> Result<Box<stream::LogEventResponseStream>, errors::Error> {
+    let request = event::LogEventsRequest {
         start_time: options.start_time,
         end_time: options.end_time,
     };
     Ok(match options.filter_expression {
         Some(filter) => {
-            stream::filter_log_events_stream(
+            stream::create_log_events_stream(Box::new(reader::FilterLogEventsReader {
                 client,
-                options.group_name.to_string(),
-                None, // NOTE: ストリームの指定どうするか確認する
-                filter.to_string(),
+                group_name: options.group_name.to_string(),
+                stream_names: None, // NOTE: ストリームの指定どうするか確認する
+                filter_expression: filter.to_string(),
                 request,
-            )
+            }))
         }
         None => {
             // get-log-eventsの場合はストリーム名必須
@@ -172,12 +171,12 @@ fn create_log_events_stream(
                 .context(errors::ErrorKind::InsufficientArguments),
             )?;
 
-            stream::get_log_events_stream(
+            stream::create_log_events_stream(Box::new(reader::GetLogEventsReader {
                 client,
-                options.group_name.to_string(),
-                stream_name.to_string(),
+                group_name: options.group_name.to_string(),
+                stream_name: stream_name.to_string(),
                 request,
-            )
+            }))
         }
     })
 }
@@ -214,12 +213,12 @@ pub fn run(client: CloudWatchLogsClient, matches: &ArgMatches) -> Result<(), err
     info!("create futures to run");
     let f = runner
         .run(stream, printer)
-        .map_err(move |e| {
-            sender_ok.send(Payload::Failure(e)).unwrap();
+        .map(move |_| {
+            sender_ok.send(Payload::Done).unwrap();
             ()
         })
-        .map(move |_| {
-            sender_err.clone().send(Payload::Done).unwrap();
+        .map_err(move |e| {
+            sender_err.send(Payload::Failure(e)).unwrap();
             ()
         });
 

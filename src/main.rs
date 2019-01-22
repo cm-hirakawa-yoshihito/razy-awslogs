@@ -1,3 +1,4 @@
+use ansi_term::Color;
 use failure::Fail;
 
 mod app;
@@ -5,10 +6,10 @@ mod cmd;
 mod errors;
 
 fn handle_error(e: errors::Error) {
-    let prefix = "error";
+    let prefix = Color::Red.paint("[razy-awslogs error]");
     match e.cause() {
         Some(fail) => {
-            eprintln!("{}: {}: cause='{}'", prefix, e, fail);
+            eprintln!("{}: {}: cause=\"{}\"", prefix, e, fail);
             if let Some(backtrace) = fail.backtrace() {
                 eprint!("{}", backtrace);
             }

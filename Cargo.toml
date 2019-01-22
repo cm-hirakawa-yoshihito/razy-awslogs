@@ -5,6 +5,7 @@ authors = ["Yoshihito Hirakawa <hirakawa.yoshihito@classmethod.jp>"]
 edition = "2018"
 
 [dependencies]
+atty = "^0.2"
 chrono = "^0.4"
 ansi_term = "^0.11"
 env_logger = "^0.6"
